@@ -169,6 +169,7 @@ FE_INCBIN_ASSET(fe_pp_dolphin_mask, "n64xy-mark.png");
 FE_INCBIN_ASSET(fe_pp_buttons, "porpoise/ui/buttons.png");
 // A original 1024x1536 user-supplied NO COVER PNG is baked into eboot.bin (works offline).
 FE_INCBIN_ASSET(fe_n64xy_default, "n64xy-mark.png");
+extern "C" const uint8_t fe_n64xy_default[], fe_n64xy_default_end[];
 extern "C" const uint8_t fe_pp_nunito_regular[], fe_pp_nunito_regular_end[],
     fe_pp_nunito_semibold[], fe_pp_nunito_semibold_end[],
     fe_pp_nunito_bold[], fe_pp_nunito_bold_end[],
