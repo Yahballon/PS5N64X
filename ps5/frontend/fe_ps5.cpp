@@ -8,6 +8,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "fe_ps5.h"
+#include "fe_exact_porpoise.h"
+#include "gba_logo.inc"
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_STATIC
+#define STBI_ONLY_PNG
+#define STBI_NO_STDIO
+#include "third_party/stb_image.h"
 #include "shelf_runtime.h"
 #include "loading.h"
 #include "fe_nfs.h"
@@ -34,8 +41,8 @@
 #include <cstring>
 #include <ctime>
 #include <dirent.h>
-#include "library_cache.h"
 #include <mutex>
+#include <map>
 #include <string>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -70,6 +77,8 @@ int sceUserServiceGetInitialUser(int32_t* userId);
 int sceKernelConvertUtcToLocaltime(time_t utc, time_t* local, KernelTimesec* sec, uint64_t* dst_sec);
 int sceSystemServiceParamGetInt(int param, int* value);
 int sceSystemServiceHideSplashScreen(void);
+// Native PS5 title exit: implemented by main_shelf.cpp, not the libc syscall.
+[[noreturn]] void n64xy_exit_to_shell(const char* reason);
 
 // libSceNet, libSceSsl and libSceHttp2 as the payload SDK's http2_get sample declares them. The
 // system loads all three into every app already, so linking them adds nothing at start-up.
@@ -144,6 +153,31 @@ FE_INCBIN_ASSET(fe_web_discord, "web/discord.svg");
 FE_INCBIN_ASSET(fe_web_x, "web/x-twitter.svg");
 // vk-285-51: the recommended settings the page's Recommended button restores.
 FE_INCBIN_ASSET(fe_presets, "presets.ini");
+// Project Porpoise original menu effects, copyright Ruben (@elripalda),
+// GPL-3.0-or-later; fetched from a pinned upstream commit during CI.
+FE_INCBIN_ASSET(fe_porpoise_game_row, "sounds/game-row.wav");
+FE_INCBIN_ASSET(fe_porpoise_menu_scroll, "sounds/menu-scroll.wav");
+// Original Porpoise font and icon files shipped inside our eboot, so the
+// default /app0 mount path is NOT a runtime dependency on PS5 homebrew.
+FE_INCBIN_ASSET(fe_pp_nunito_regular, "porpoise/fonts/Nunito-Regular.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_semibold, "porpoise/fonts/Nunito-SemiBold.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_bold, "porpoise/fonts/Nunito-Bold.ttf");
+FE_INCBIN_ASSET(fe_pp_nunito_extrabold, "porpoise/fonts/Nunito-ExtraBold.ttf");
+FE_INCBIN_ASSET(fe_pp_noto_jp, "porpoise/fonts/NotoSansJP-Porpoise.ttf");
+// The built-in tiger replaces the original Dolphin brand mask.
+FE_INCBIN_ASSET(fe_pp_dolphin_mask, "n64xy-mark.png");
+FE_INCBIN_ASSET(fe_pp_buttons, "porpoise/ui/buttons.png");
+// A original 1024x1536 user-supplied NO COVER PNG is baked into eboot.bin (works offline).
+FE_INCBIN_ASSET(fe_n64xy_default, "n64xy-mark.png");
+extern "C" const uint8_t fe_pp_nunito_regular[], fe_pp_nunito_regular_end[],
+    fe_pp_nunito_semibold[], fe_pp_nunito_semibold_end[],
+    fe_pp_nunito_bold[], fe_pp_nunito_bold_end[],
+    fe_pp_nunito_extrabold[], fe_pp_nunito_extrabold_end[],
+    fe_pp_noto_jp[], fe_pp_noto_jp_end[],
+    fe_pp_dolphin_mask[], fe_pp_dolphin_mask_end[],
+    fe_pp_buttons[], fe_pp_buttons_end[];
+
+
 extern "C" const uint8_t fe_font_brands[], fe_font_brands_end[], fe_web_page[], fe_web_page_end[], fe_web_discord[],
 	fe_web_discord_end[], fe_web_x[], fe_web_x_end[], fe_presets[], fe_presets_end[];
 
@@ -152,7 +186,61 @@ namespace
 using namespace fe;
 
 // xlenore/ps2-covers, the default set: <serial>.jpg, 512x736 (the same source as the user's Twiso).
-constexpr const char* kCoverUrl = "https://raw.githubusercontent.com/libretro-thumbnails/Nintendo_-_Nintendo_64/master/Named_Boxarts/${title}.png";
+constexpr const char* kCoverUrl = "https://thumbnails.libretro.com/Nintendo%20-%20Game%20Boy%20Advance/Named_Boxarts/${title}.png";
+
+struct EmbeddedPorpoiseAsset { const char* name; const uint8_t* begin; const uint8_t* end; };
+bool PreparePorpoiseAssets(const std::string& root)
+{
+    const EmbeddedPorpoiseAsset assets[] = {
+        {"fonts/Nunito-Regular.ttf", fe_pp_nunito_regular, fe_pp_nunito_regular_end},
+        {"fonts/Nunito-SemiBold.ttf", fe_pp_nunito_semibold, fe_pp_nunito_semibold_end},
+        {"fonts/Nunito-Bold.ttf", fe_pp_nunito_bold, fe_pp_nunito_bold_end},
+        {"fonts/Nunito-ExtraBold.ttf", fe_pp_nunito_extrabold, fe_pp_nunito_extrabold_end},
+        {"fonts/NotoSansJP-Porpoise.ttf", fe_pp_noto_jp, fe_pp_noto_jp_end},
+        {"brand/dolphin-mask.png", fe_pp_dolphin_mask, fe_pp_dolphin_mask_end},
+        {"ui/buttons.png", fe_pp_buttons, fe_pp_buttons_end},
+    };
+    for (const std::string& dir : {root, root + "/fonts", root + "/brand", root + "/ui"})
+    {
+        if (mkdir(dir.c_str(), 0777) && errno != EEXIST)
+        {
+            std::printf("[Porpoise Exact] mkdir(%s): errno %d\n", dir.c_str(), errno);
+            return false;
+        }
+    }
+    for (const auto& a : assets)
+    {
+        const std::string name = root + "/" + a.name;
+        const size_t bytes = static_cast<size_t>(a.end - a.begin);
+        struct stat st{};
+        if (stat(name.c_str(), &st) == 0 && static_cast<size_t>(st.st_size) == bytes)
+            continue;
+        const std::string tmp = name + ".new";
+        int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+        if (fd < 0)
+        {
+            std::printf("[Porpoise Exact] open(%s): errno %d\n", tmp.c_str(), errno);
+            return false;
+        }
+        size_t done = 0;
+        bool complete = true;
+        while (done < bytes)
+        {
+            const ssize_t n = write(fd, a.begin + done, bytes - done);
+            if (n <= 0) { complete = false; break; }
+            done += static_cast<size_t>(n);
+        }
+        if (close(fd) || !complete || rename(tmp.c_str(), name.c_str()))
+        {
+            unlink(tmp.c_str());
+            std::printf("[Porpoise Exact] asset write failed: %s\n", name.c_str());
+            return false;
+        }
+    }
+    std::printf("[Porpoise Exact] original embedded UI assets are ready at %s\n", root.c_str());
+    return true;
+}
+
 
 // The key sounds' output: a port on the main output, float stereo at 48 kHz in 256-frame grains,
 // opened the way PCSX2's own output opens it once the game runs (system user, main port, format 4),
@@ -560,6 +648,7 @@ Http g_http;
 // ---- The display ----
 struct Display
 {
+    std::string preferred_resolution="4K";bool vsync=false;
 	Vk vk;
 	VkInstance instance = VK_NULL_HANDLE;
 	VkPhysicalDevice pd = VK_NULL_HANDLE;
@@ -672,7 +761,9 @@ struct Display
 			};
 			for (const VkDisplayModePropertiesKHR& m : modes)
 			{
-				const uint64_t area = static_cast<uint64_t>(m.parameters.visibleRegion.width) * m.parameters.visibleRegion.height;
+				if(m.parameters.visibleRegion.width>3840||m.parameters.visibleRegion.height>2160||off_60hz(m)>2000)continue;
+                if(preferred_resolution=="1080p"&&m.parameters.visibleRegion.height>1080)continue;
+                const uint64_t area = static_cast<uint64_t>(m.parameters.visibleRegion.width) * m.parameters.visibleRegion.height;
 				const uint64_t best = static_cast<uint64_t>(mode.parameters.visibleRegion.width) * mode.parameters.visibleRegion.height;
 				if (!display || area > best || (area == best && off_60hz(m) < off_60hz(mode)))
 				{
@@ -729,6 +820,7 @@ struct Display
 		sci.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		sci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		sci.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        if(!vsync){uint32_t count=0;vk.vkGetPhysicalDeviceSurfacePresentModesKHR(pd,surface,&count,nullptr);std::vector<VkPresentModeKHR> supported(count);vk.vkGetPhysicalDeviceSurfacePresentModesKHR(pd,surface,&count,supported.data());if(std::find(supported.begin(),supported.end(),VK_PRESENT_MODE_IMMEDIATE_KHR)!=supported.end())sci.presentMode=VK_PRESENT_MODE_IMMEDIATE_KHR;else std::printf("[gba] VSync off unavailable; FIFO retained\n");}
 		sci.clipped = VK_TRUE;
 		r = vk.vkCreateSwapchainKHR(device, &sci, nullptr, &swapchain);
 		if (r != VK_SUCCESS)
@@ -1201,7 +1293,7 @@ bool orbis_web_start(const OrbisFrontendPaths& paths, const char* build_tag)
 	cfg.cache_dir = paths.cache_dir;
 	cfg.build_tag = build_tag ? build_tag : "";
 	cfg.port = 8844;
-	cfg.presets.clear(); // (AI-assisted) N64 defaults come from the N64 option groups.
+	cfg.presets.clear(); // (AI-assisted) GBA defaults come from the GBA option groups.
 	cfg.change_log = paths.settings_log;
 	// Test build 1 (vk-285-55): the logs download.
 	cfg.logs_dir = paths.logs_dir;
@@ -1302,7 +1394,7 @@ int orbis_frontend_prefetch_covers(const OrbisFrontendPaths& paths, double budge
 	cc.manual_dir = paths.covers_dir;
 	cc.cache_dir = paths.cache_dir;
 	cc.url_template = kCoverUrl;
-    cc.resolve_urls = n64::CoverUrls;
+    cc.resolve_urls=n64::CoverUrls;
 	const std::vector<int> missing = CoverService::MissingCovers(games, cc);
 	std::printf("[frontend] prefetch: %zu of %zu covers to fetch (%d from the USB list; checked in %.0f ms)\n", missing.size(),
 		games.size(), listed, (Now() - t0) * 1000.0);
@@ -1345,6 +1437,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 
 	// Heap objects, so a download still running at the end can be left to finish on its own.
 	Display* display = new Display();
+    std::string display_ini;settings::ReadFile(paths.gs_ini,display_ini);for(const auto& item:settings::ReadState(display_ini).kv){if(item.first=="GBA/Resolution")display->preferred_resolution=item.second;if(item.first=="GBA/VSync")display->vsync=item.second!="false";}
 	if (!display->Init())
 	{
 		display->Destroy();
@@ -1370,6 +1463,12 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	}
 
     // (AI-assisted) Present the first loading frame before any slow filesystem/NFS calls.
+    int lw=0,lh=0,lc=0;auto* logo_bytes=stbi_load_from_memory(gba_logo_png,sizeof(gba_logo_png),&lw,&lh,&lc,4);
+    Texture* brand_logo=logo_bytes?renderer.CreateTexture(lw,lh,VK_FORMAT_R8G8B8A8_UNORM,logo_bytes):nullptr;stbi_image_free(logo_bytes);
+    VkDescriptorSet brand_set=brand_logo?renderer.AllocTextureSet(brand_logo,brand_logo,brand_logo):VK_NULL_HANDLE;
+    auto add_logo=[&](FrameDesc& f){if(!brand_set)return;float k=display->extent.height/1080.f,x=30*k,y=25*k,size=96*k;
+        auto v=[](float x,float y,float u,float t){return UiVertex{x,y,u,t,0xffffffff,0,0,0,6};};
+        f.ui.insert(f.ui.begin(),{v(x,y,0,0),v(x+size,y,1,0),v(x,y+size,0,1),v(x,y+size,0,1),v(x+size,y,1,0),v(x+size,y+size,1,1)});f.game_set=brand_set;f.game_vertices=6;};
     auto* loading_atlas=renderer.CreateTexture(fonts->AtlasWidth(),fonts->AtlasHeight(),VK_FORMAT_R8_UNORM,fonts->AtlasPixels().data());
     if(!loading_atlas) { renderer.Shutdown();display->Destroy();delete display;delete fonts;scePadClose(pad);return {}; }
     renderer.SetAtlas(loading_atlas);
@@ -1402,7 +1501,11 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
     while(loading_ok) {
         auto progress=loading.Snapshot(scanning_done);
         loading_ok=show_loading(progress,scanning_done);
-        if(scanning_done)break;
+        if(scanning_done) {
+            const double ready_until=Now()+0.31;
+            while(loading_ok && Now()<ready_until) { loading_ok=show_loading(progress,true); usleep(16000); }
+            break;
+        }
         // UI presentation remains on this thread; NFS only runs on the scanner.
         usleep(1000);
     }
@@ -1433,6 +1536,8 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 		}
 	}
 	SortGames(games); // vk-285-113: by the titles the game database may have changed
+    std::string library_ini;settings::ReadFile(paths.gs_ini,library_ini);bool recent_order=false;for(const auto& item:settings::ReadState(library_ini).kv)if(item.first=="GBA/LibraryOrder")recent_order=item.second=="Recent";
+    if(recent_order){std::string text;settings::ReadFile(paths.top_dir+"/recent-games.txt",text);std::map<std::string,size_t> ranks;size_t at=0,rank=0;while(at<text.size()){auto end=text.find('\n',at);if(end==text.npos)end=text.size();ranks[text.substr(at,end-at)]=rank++;at=end+1;}std::stable_sort(games.begin(),games.end(),[&](const auto& a,const auto& b){auto x=ranks.find(a.path),y=ranks.find(b.path);return (x==ranks.end()?size_t(-1):x->second)<(y==ranks.end()?size_t(-1):y->second);});}
 	std::printf("[frontend] %zu disc image(s), %d on USB, scanned in %.0f ms\n", games.size(), on_usb, (Now() - t0) * 1000.0);
 	std::fflush(stdout);
 	WriteUsbList(paths.usb_list, games);
@@ -1461,12 +1566,39 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	cc.manual_dir = paths.covers_dir;
 	cc.cache_dir = paths.cache_dir;
 	cc.url_template = kCoverUrl;
-    cc.resolve_urls = n64::CoverUrls;
+    cc.resolve_urls=n64::CoverUrls;
 	cc.allow_download = paths.allow_download;
 	cc.download_usb_only = false; // (AI-assisted) Fetch missing local, USB and NFS covers after filesystem access is ready.
 	cc.download_error = [] { return g_http.last_error.empty() ? std::string("Covers: transport error") : g_http.last_error; };
 	std::printf("[frontend] starting bounded cover worker\n");
 	covers->Start(games, fonts, cc, [](const std::string& url, std::vector<uint8_t>& out) { return g_http.Get(url, out); });
+	// The actual Porpoise Gfx renderer, not an NES case shader approximation.
+	// This is opt-in at runtime: if assets, shaders or GPU init fail, the
+	// previously working NES CoverFlow remains the safe fallback.
+	ExactPorpoiseShelf exact;
+	porpoise::ui::GfxInit original_ui{};
+	original_ui.instance=display->instance;
+	original_ui.gpu=display->pd;
+	original_ui.device=display->device;
+	original_ui.queue=display->queue;
+	original_ui.queue_family=display->qf;
+	original_ui.render_pass=renderer.ExactFinalPass();
+	original_ui.slots=2;
+	original_ui.get_instance_proc=vk_icdGetInstanceProcAddr;
+	original_ui.get_device_proc=display->vk.vkGetDeviceProcAddr;
+	original_ui.asset_dir=paths.top_dir+"/porpoise-ui";
+	const bool assets_ready=PreparePorpoiseAssets(original_ui.asset_dir);
+	original_ui.cache_dir=paths.cache_dir+"/porpoise";
+	const bool exact_ready=assets_ready && exact.Init(original_ui,games);
+	if(exact_ready)
+		renderer.SetExactCallbacks(
+			[&exact](unsigned s,float w,float h){exact.Prepare(s,w,h);},
+			[&exact](VkCommandBuffer cmd){exact.Upload(cmd);},
+			[&exact](VkCommandBuffer cmd){exact.Record(cmd);});
+	std::printf("[Porpoise Exact] original Gfx %s; GBA emulation remains separate\\n",
+		exact_ready?"active":"unavailable, legacy fallback");
+
+
 
 	// The key sounds (vk-285-47). Without an audio port the shelf is simply quiet.
 	Mixer* mixer = nullptr;
@@ -1493,14 +1625,14 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	App app;
 	AppConfig acfg;
     acfg.options.rescan_library=[root=paths.top_dir](std::string& error){return fileio::WriteAtomic(root+"/cache/rescan-library","1\n",error);};
-    acfg.options.reset_library=[root=paths.top_dir](std::string& error){return n64::ResetLibraryCache(root,error);};
-    acfg.options.clear_nfs_urls=[root=paths.top_dir](std::string& error){return fileio::WriteAtomic(root+"/nfs.txt","# No NFS shares configured.\n",error);};
 	acfg.build_tag = build_tag ? build_tag : "";
 	acfg.test_build = paths.test_build;   // test build 1: the TESTING watermark
 	acfg.build_label = paths.build_label;
 	acfg.test_note = paths.test_note; // vk-285-105
 	acfg.preselect = preselect;
 	acfg.sound = mixer;
+    acfg.exact=exact_ready?&exact:nullptr;
+    acfg.exact_failed=!exact_ready;
 	// vk-285-114: the options sheet (Square) edits the files the settings page does, and logs as it does.
 	acfg.options.settings_dir = paths.settings_dir;
 	acfg.options.gs_ini = paths.gs_ini;
@@ -1592,6 +1724,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
         else
         {
             app.Update(dt, in);
+            if(app.ExitRequested()) { std::printf("[N64XY] Close confirmed\n"); break; }
             app.Build(frame, Clock());
             if (app.Done() && app.Chosen() >= 0 && static_cast<size_t>(app.Chosen()) < games.size())
             {
@@ -1601,7 +1734,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
                     if (audio) audio->Start(mixer);
                     app.Resume(nes_game.error); app.Build(frame, Clock());
                 }
-                else orbis_web_now_playing(games[static_cast<size_t>(app.Chosen())].path);
+                else {const auto& started=games[static_cast<size_t>(app.Chosen())];WriteLastGame(paths.top_dir,started.file);orbis_web_now_playing(started.path);std::string previous;settings::ReadFile(paths.top_dir+"/recent-games.txt",previous);std::string line=started.path+"\n";auto at=previous.find(line);if(at!=previous.npos)previous.erase(at,line.size());previous=line+previous;size_t count=0;for(size_t i=0;i<previous.size();++i)if(previous[i]=='\n'&&++count==20){previous.resize(i+1);break;}settings::WriteFileAtomic(paths.top_dir+"/recent-games.txt",previous);}
             }
         }
 		if (!renderer.WaitForSlot())
@@ -1609,6 +1742,8 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 			ok = false;
 			break;
 		}
+        renderer.ExactEnabled(exact_ready && !nes_game.Active());
+        if(!nes_game.Active() && !exact_ready) add_logo(frame);
 		uint32_t index = 0;
 		VkResult r = display->vk.vkAcquireNextImageKHR(display->device, display->swapchain, UINT64_MAX,
 			display->acquired[slot], VK_NULL_HANDLE, &index);
@@ -1664,12 +1799,16 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	const int chosen = app.Chosen();
 	const bool picked = ok && app.Done();
 	renderer.WaitIdle();
+    renderer.ExactEnabled(false);
+    renderer.SetExactCallbacks({}, {}, {});
+    exact.Shutdown();
 	app.Shutdown();
 	// The worker may be inside a download: stop it from starting another, fail the one in flight,
 	// give it a moment, then leave it behind if need be.
 	covers->RequestStop();
 	g_http.Abort();
 	const bool stopped = covers->Stop(1500);
+	if(brand_set)renderer.FreeTextureSet(brand_set);if(brand_logo)renderer.DestroyTexture(brand_logo);
 	renderer.Shutdown();
 	display->Destroy();
 	delete display;
@@ -1693,6 +1832,11 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 		delete mixer;
 	}
 
+    if (app.ExitRequested()) {
+        std::printf("[N64XY] Native resources closed; requesting title exit from system shell\n");
+        std::fflush(nullptr);
+        n64xy_exit_to_shell("CoverFlow exit confirmed"); // never returns; libc exit() is SIGSYS
+    }
 	if (!picked)
 	{
 		std::printf("[frontend] stopped without a pick; the plain list takes over\n");
