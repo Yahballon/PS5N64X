@@ -68,7 +68,7 @@ const char* const kEnglish[kCount] = {
 	"Now playing: %s\n%s · have fun!",
 	"native %s",
 	"software renderer",
-	"PS5N64: no game to start. Put your .iso or .chd files in /data/PS5N64/games/ or on a USB drive, then start PS5N64 again.",
+	"PS5N64: no game to start. Put your .gba or .zip files in /data/PS5N64/games/ or on a USB drive, then start PS5N64 again.",
 	"PS5N64: the game didn't start.\n%s",
 	"PS5N64: couldn't open the menu, back to the game",
 	"PS5N64: the game stopped",
@@ -102,7 +102,7 @@ const char* const kSpanish[kCount] = {
 	"Jugando: %s\n%s · ¡que lo disfrutes!",
 	"resolución nativa, %s",
 	"renderizado por software",
-	"PS5N64: no hay ningún juego para iniciar. Pon tus archivos .iso o .chd en /data/PS5N64/games/ o en una unidad USB y vuelve a abrir PS5N64.",
+	"PS5N64: no hay ningún juego para iniciar. Pon tus archivos .sfc o .smc en /data/PS5N64/games/ o en una unidad USB y vuelve a abrir PS5N64.",
 	"PS5N64: el juego no se ha iniciado.\n%s",
 	"PS5N64: no se ha podido abrir el menú; vuelves al juego",
 	"PS5N64: el juego se ha detenido",
@@ -136,7 +136,7 @@ const char* const kSpanishLatAm[kCount] = {
 	"Jugando: %s\n%s · ¡que lo disfrutes!",
 	"resolución nativa, %s",
 	"renderizado por software",
-	"PS5N64: no hay ningún juego para iniciar. Coloca tus archivos .iso o .chd en /data/PS5N64/games/ o en una unidad USB y vuelve a abrir PS5N64.",
+	"PS5N64: no hay ningún juego para iniciar. Coloca tus archivos .sfc o .smc en /data/PS5N64/games/ o en una unidad USB y vuelve a abrir PS5N64.",
 	"PS5N64: el juego no se inició.\n%s",
 	"PS5N64: no se pudo abrir el menú; vuelves al juego",
 	"PS5N64: el juego se detuvo",
@@ -170,7 +170,7 @@ const char* const kFrench[kCount] = {
 	"En jeu : %s\n%s · bon jeu !",
 	"résolution native, %s",
 	"rendu logiciel",
-	"PS5N64 : aucun jeu à lancer. Mets tes fichiers .iso ou .chd dans /data/PS5N64/games/ ou sur une clé USB, puis relance PS5N64.",
+	"PS5N64 : aucun jeu à lancer. Mets tes fichiers .sfc ou .smc dans /data/PS5N64/games/ ou sur une clé USB, puis relance PS5N64.",
 	"PS5N64 : le jeu n'a pas démarré.\n%s",
 	"PS5N64 : impossible d'ouvrir le menu, retour au jeu",
 	"PS5N64 : le jeu s'est arrêté",
@@ -204,7 +204,7 @@ const char* const kGerman[kCount] = {
 	"Jetzt läuft: %s\n%s · viel Spaß!",
 	"native Auflösung, %s",
 	"Software-Renderer",
-	"PS5N64: Kein Spiel zum Starten. Lege deine .iso- oder .chd-Dateien in /data/PS5N64/games/ oder auf ein USB-Laufwerk und starte PS5N64 dann neu.",
+	"PS5N64: Kein Spiel zum Starten. Lege deine .sfc- oder .smc-Dateien in /data/PS5N64/games/ oder auf ein USB-Laufwerk und starte PS5N64 dann neu.",
 	"PS5N64: Das Spiel ist nicht gestartet.\n%s",
 	"PS5N64: Das Menü konnte nicht geöffnet werden, zurück zum Spiel",
 	"PS5N64: Das Spiel wurde beendet",
@@ -238,7 +238,7 @@ const char* const kItalian[kCount] = {
 	"In gioco: %s\n%s · buon divertimento!",
 	"risoluzione nativa, %s",
 	"rendering software",
-	"PS5N64: nessun gioco da avviare. Metti i tuoi file .iso o .chd in /data/PS5N64/games/ o su un'unità USB, poi riapri PS5N64.",
+	"PS5N64: nessun gioco da avviare. Metti i tuoi file .sfc o .smc in /data/PS5N64/games/ o su un'unità USB, poi riapri PS5N64.",
 	"PS5N64: il gioco non si è avviato.\n%s",
 	"PS5N64: impossibile aprire il menu, si torna al gioco",
 	"PS5N64: il gioco si è fermato",
@@ -272,7 +272,7 @@ const char* const kDutch[kCount] = {
 	"Nu speel je: %s\n%s · veel plezier!",
 	"native resolutie, %s",
 	"softwarerenderer",
-	"PS5N64: geen game om te starten. Zet je .iso- of .chd-bestanden in /data/PS5N64/games/ of op een USB-stick en start PS5N64 opnieuw.",
+	"PS5N64: geen game om te starten. Zet je .sfc- of .smc-bestanden in /data/PS5N64/games/ of op een USB-stick en start PS5N64 opnieuw.",
 	"PS5N64: de game is niet gestart.\n%s",
 	"PS5N64: het menu kon niet worden geopend, terug naar de game",
 	"PS5N64: de game is gestopt",
@@ -306,7 +306,7 @@ const char* const kPortuguese[kCount] = {
 	"A jogar: %s\n%s · diverte-te!",
 	"resolução nativa, %s",
 	"renderização por software",
-	"PS5N64: nenhum jogo para iniciar. Coloca os teus ficheiros .iso ou .chd em /data/PS5N64/games/ ou numa pen USB e volta a abrir o PS5N64.",
+	"PS5N64: nenhum jogo para iniciar. Coloca os teus ficheiros .sfc ou .smc em /data/PS5N64/games/ ou numa pen USB e volta a abrir o PS5N64.",
 	"PS5N64: o jogo não arrancou.\n%s",
 	"PS5N64: não foi possível abrir o menu, de volta ao jogo",
 	"PS5N64: o jogo parou",
@@ -340,7 +340,7 @@ const char* const kPortugueseBrazil[kCount] = {
 	"Jogando: %s\n%s · divirta-se!",
 	"resolução nativa, %s",
 	"renderização por software",
-	"PS5N64: nenhum jogo para iniciar. Coloque seus arquivos .iso ou .chd em /data/PS5N64/games/ ou em um pendrive e abra o PS5N64 de novo.",
+	"PS5N64: nenhum jogo para iniciar. Coloque seus arquivos .sfc ou .smc em /data/PS5N64/games/ ou em um pendrive e abra o PS5N64 de novo.",
 	"PS5N64: o jogo não iniciou.\n%s",
 	"PS5N64: não foi possível abrir o menu, voltando ao jogo",
 	"PS5N64: o jogo parou",
@@ -543,13 +543,14 @@ void LoadOverrides(const std::string& path)
 
 void SetLanguage(int ps5_language, const std::string& lang_dir)
 {
-	s_lang = LanguageFor(1); // (AI-assisted) PS5N64 UI is English regardless of console language.
+	s_lang = LanguageFor(1);
 	for (std::string& s : s_text_over)
 		s.clear();
 	for (std::string& s : s_region_over)
 		s.clear();
 	std::printf("[i18n] PS5 language %d: text in %s\n", ps5_language, s_lang->code);
-	(void)lang_dir; // Keep custom translation overrides from changing the English UI.
+	if (!lang_dir.empty())
+		LoadOverrides(lang_dir + "/" + s_lang->code + ".txt");
 	std::fflush(stdout);
 }
 
@@ -560,10 +561,6 @@ const char* Tr(Str id)
 		return "";
 	if (!s_text_over[static_cast<size_t>(i)].empty())
 		return s_text_over[static_cast<size_t>(i)].c_str();
-    if(id==Str::NoGames)return std::strcmp(s_lang->code,"de")==0?"Keine N64-Spiele gefunden":"No N64 games found";
-    if(id==Str::NotifyNoGame)return std::strcmp(s_lang->code,"de")==0?
-        "PS5N64: Lege .z64, .v64, .n64 oder .zip in /data/PS5N64/games/ oder /mnt/usb0/homebrew/PS5N64/games/ und starte die App neu.":
-        "PS5N64: Put .z64, .v64, .n64 or .zip in /data/PS5N64/games/ or /mnt/usb0/homebrew/PS5N64/games/ and restart the app.";
 	const char* t = s_lang->text[i];
 	return t ? t : kEnglish[i];
 }

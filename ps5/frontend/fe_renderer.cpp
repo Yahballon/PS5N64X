@@ -713,7 +713,8 @@ bool Renderer::Init(Vk* vk, VkPhysicalDevice physical_device, VkDevice device, u
 	if (!m_white)
 		return false;
 	m_post_set = AllocTextureSet(&m_scene, m_white, m_white);
-	return m_post_set != VK_NULL_HANDLE;
+	m_bg_fallback_set = AllocTextureSet(m_white, m_white, m_white);
+	return m_post_set != VK_NULL_HANDLE && m_bg_fallback_set != VK_NULL_HANDLE;
 }
 
 Texture* Renderer::CreateTexture(uint32_t w, uint32_t h, VkFormat format, const void* pixels)
@@ -884,6 +885,11 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 	if (r != VK_SUCCESS)
 		return Fail("vkBeginCommandBuffer", r);
 	VkCommandBuffer cmd = s.cmd;
+	if (m_exact_enabled && m_exact_prepare)
+	{
+		m_exact_prepare(static_cast<unsigned>(m_slot),float(m_width),float(m_height));
+		if (m_exact_upload) m_exact_upload(cmd);
+	}
 
 	// Texture uploads.
 	for (Upload& up : m_pending)
@@ -924,7 +930,8 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &s.frame_set, 0, nullptr);
 
 		m_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_bg);
-		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &m_post_set, 0, nullptr);
+		const VkDescriptorSet background_set = f.backdrop_set ? f.backdrop_set : m_bg_fallback_set;
+		m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &background_set, 0, nullptr);
 		m_vk->vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
 			sizeof(BgParams), &f.bg);
 		m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &m_quad_vb.buffer, &zero);
@@ -997,12 +1004,35 @@ bool Renderer::Render(const FrameDesc& f, uint32_t out_index, VkSemaphore wait, 
 			sizeof(post), post);
 		m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &m_quad_vb.buffer, &zero);
 		m_vk->vkCmdDraw(cmd, 3, 1, 0, 0);
-		if (!f.ui.empty() && m_atlas_set)
+		// Original Porpoise blue-glass library is the complete background.
+		// Draw the native Settings sheet *after* it (not the old black shelf).
+		// Rebind PS5NESX's own pipeline, descriptors and vertex buffer after
+		// Porpoise changed the Vulkan graphics state.
+		if (m_exact_enabled && m_exact_draw) m_exact_draw(cmd);
+		if (!f.ui.empty() && (m_atlas_set || f.game_set))
 		{
 			m_vk->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ui);
-			m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &m_atlas_set, 0, nullptr);
+			// Porpoise changes pipeline state; always restore the native
+			// pipeline, uniform set, UI shader constants and UI vertex buffer.
+			m_vk->vkCmdPushConstants(cmd, m_layout,
+				VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+				0, sizeof(post), post);
+			m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 0, 1, &s.frame_set, 0, nullptr);
 			m_vk->vkCmdBindVertexBuffers(cmd, 0, 1, &s.ui.buffer, &zero);
-			m_vk->vkCmdDraw(cmd, static_cast<uint32_t>(f.ui.size()), 1, 0, 0);
+			// The first six vertices display the full-screen game texture.
+			// Later vertices (FPS text or settings) use the signed-distance font.
+			const uint32_t game_count=f.game_set
+				? std::min(static_cast<uint32_t>(f.ui.size()),f.game_vertices) : 0;
+			if (game_count>0)
+			{
+				m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &f.game_set, 0, nullptr);
+				m_vk->vkCmdDraw(cmd,game_count,1,0,0);
+			}
+			if (m_atlas_set && f.ui.size()>game_count)
+			{
+				m_vk->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_layout, 1, 1, &m_atlas_set, 0, nullptr);
+				m_vk->vkCmdDraw(cmd,static_cast<uint32_t>(f.ui.size())-game_count,1,game_count,0);
+			}
 		}
 		m_vk->vkCmdEndRenderPass(cmd);
 	}
