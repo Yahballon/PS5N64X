@@ -5,6 +5,7 @@ root=Path(__file__).resolve().parents[1]
 app=json.loads((root/'app.json').read_text())
 param=json.loads((root/'n64/sce_sys/param.json').read_text())
 assert app['name']=='N64XY' and app['version']=='1.0.8'
+assert app['releaseTag']==f"v{app['version']}"  # exactly the GH Actions release tag
 assert app['titleId']=='PPSA99206' and param['titleId']=='PPSA99206'
 assert param['localizedParameters']['en-US']['titleName']=='N64XY'
 urls=(root/'n64/src/cover_urls.h').read_text()
