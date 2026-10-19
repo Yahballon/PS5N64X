@@ -9,7 +9,7 @@
 
 #include "fe_ps5.h"
 #include "fe_exact_porpoise.h"
-#include "gba_logo.inc"
+// The original N64 installation emblem is embedded as fe_n64xy_default.
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_STATIC
 #define STBI_ONLY_PNG
@@ -1437,7 +1437,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 
 	// Heap objects, so a download still running at the end can be left to finish on its own.
 	Display* display = new Display();
-    std::string display_ini;settings::ReadFile(paths.gs_ini,display_ini);for(const auto& item:settings::ReadState(display_ini).kv){if(item.first=="GBA/Resolution")display->preferred_resolution=item.second;if(item.first=="GBA/VSync")display->vsync=item.second!="false";}
+    std::string display_ini;settings::ReadFile(paths.gs_ini,display_ini);for(const auto& item:settings::ReadState(display_ini).kv){if(item.first=="N64/Resolution")display->preferred_resolution=item.second;if(item.first=="N64/VSync")display->vsync=item.second!="false";}
 	if (!display->Init())
 	{
 		display->Destroy();
@@ -1463,7 +1463,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 	}
 
     // (AI-assisted) Present the first loading frame before any slow filesystem/NFS calls.
-    int lw=0,lh=0,lc=0;auto* logo_bytes=stbi_load_from_memory(gba_logo_png,sizeof(gba_logo_png),&lw,&lh,&lc,4);
+    int lw=0,lh=0,lc=0;auto* logo_bytes=stbi_load_from_memory(fe_n64xy_default,static_cast<int>(fe_n64xy_default_end-fe_n64xy_default),&lw,&lh,&lc,4);
     Texture* brand_logo=logo_bytes?renderer.CreateTexture(lw,lh,VK_FORMAT_R8G8B8A8_UNORM,logo_bytes):nullptr;stbi_image_free(logo_bytes);
     VkDescriptorSet brand_set=brand_logo?renderer.AllocTextureSet(brand_logo,brand_logo,brand_logo):VK_NULL_HANDLE;
     auto add_logo=[&](FrameDesc& f){if(!brand_set)return;float k=display->extent.height/1080.f,x=30*k,y=25*k,size=96*k;
@@ -1536,7 +1536,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 		}
 	}
 	SortGames(games); // vk-285-113: by the titles the game database may have changed
-    std::string library_ini;settings::ReadFile(paths.gs_ini,library_ini);bool recent_order=false;for(const auto& item:settings::ReadState(library_ini).kv)if(item.first=="GBA/LibraryOrder")recent_order=item.second=="Recent";
+    std::string library_ini;settings::ReadFile(paths.gs_ini,library_ini);bool recent_order=false;for(const auto& item:settings::ReadState(library_ini).kv)if(item.first=="N64/LibraryOrder")recent_order=item.second=="Recent";
     if(recent_order){std::string text;settings::ReadFile(paths.top_dir+"/recent-games.txt",text);std::map<std::string,size_t> ranks;size_t at=0,rank=0;while(at<text.size()){auto end=text.find('\n',at);if(end==text.npos)end=text.size();ranks[text.substr(at,end-at)]=rank++;at=end+1;}std::stable_sort(games.begin(),games.end(),[&](const auto& a,const auto& b){auto x=ranks.find(a.path),y=ranks.find(b.path);return (x==ranks.end()?size_t(-1):x->second)<(y==ranks.end()?size_t(-1):y->second);});}
 	std::printf("[frontend] %zu disc image(s), %d on USB, scanned in %.0f ms\n", games.size(), on_usb, (Now() - t0) * 1000.0);
 	std::fflush(stdout);
@@ -1595,7 +1595,7 @@ std::string orbis_frontend_run(const OrbisFrontendPaths& paths, const char* buil
 			[&exact](unsigned s,float w,float h){exact.Prepare(s,w,h);},
 			[&exact](VkCommandBuffer cmd){exact.Upload(cmd);},
 			[&exact](VkCommandBuffer cmd){exact.Record(cmd);});
-	std::printf("[Porpoise Exact] original Gfx %s; GBA emulation remains separate\\n",
+	std::printf("[Porpoise Exact] original Gfx %s; N64 emulation remains separate\\n",
 		exact_ready?"active":"unavailable, legacy fallback");
 
 

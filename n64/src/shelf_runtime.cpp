@@ -40,7 +40,7 @@ bool ShelfRuntime::Start(const std::string& path,fe::Renderer& renderer) {
     core.SetOption("parallel-n64-angrylion-upscaling","1x");
     core.SetOption("parallel-n64-pak1","memory");
     core.SetOption("parallel-n64-alt-map","enabled");
-    aspect=get("N64/Aspect","4:3");bindings.Load(options);sound=get("N64/Sound","true")=="true";
+    aspect=get("N64/Aspect","16:9");bindings.Load(options);sound=get("N64/Sound","true")=="true";
     if(!core.Load(path,std::move(rom))){error=core.error;return false;}
     resampler.Reset(core.sample_rate);audio_rate=core.sample_rate;
     if(sound){audio=std::make_unique<ShelfAudio>();if(!audio->Open()){error="N64 audio port failed";audio.reset();}}
@@ -50,7 +50,12 @@ bool ShelfRuntime::Start(const std::string& path,fe::Renderer& renderer) {
 void ShelfRuntime::Stop(fe::Renderer& renderer) {
     if(!core.Unload())error=core.error;
     audio.reset();renderer.SetAtlas(menu_atlas);
-    if(game_texture)renderer.DestroyTexture(game_texture);game_texture=nullptr;active=false;
+    for(unsigned i=0;i<3;++i) {
+        if(game_sets[i])renderer.FreeTextureSet(game_sets[i]);
+        if(game_textures[i])renderer.DestroyTexture(game_textures[i]);
+        game_sets[i]=VK_NULL_HANDLE;game_textures[i]=nullptr;
+    }
+    texture_slot=0;active=false;
 }
 bool ShelfRuntime::Build(fe::Renderer& renderer,fe::FrameDesc& frame,uint32_t raw,double now,uint8_t lx,uint8_t ly,uint8_t rx,uint8_t ry) {
     const auto input=bindings.Update(raw,now);
@@ -73,20 +78,27 @@ bool ShelfRuntime::Build(fe::Renderer& renderer,fe::FrameDesc& frame,uint32_t ra
     // (AI-assisted) Deferred texture retirement uses the existing renderer's fenced frame slots.
     // Continuous menu/game transitions still need proper testing on PS5 hardware.
     if(changed&&!core.pixels.empty()) {
-        auto* next=renderer.CreateTexture(core.width,core.height,VK_FORMAT_R8G8B8A8_UNORM,core.pixels.data());
-        if(!next){error="N64 frame upload failed";Stop(renderer);return false;}
-        renderer.SetAtlas(next);if(game_texture)renderer.DestroyTexture(game_texture);game_texture=next;
+        const unsigned next=(texture_slot+1)%3;
+        fe::Texture* fresh=renderer.CreateTexture(core.width,core.height,VK_FORMAT_R8G8B8A8_UNORM,core.pixels.data());
+        if(!fresh){error="N64 frame upload failed";Stop(renderer);return false;}
+        const VkDescriptorSet set=renderer.AllocTextureSet(fresh,fresh,fresh);
+        if(!set){renderer.DestroyTexture(fresh);error="N64 frame descriptor failed";Stop(renderer);return false;}
+        if(game_sets[next])renderer.FreeTextureSet(game_sets[next]);
+        if(game_textures[next])renderer.DestroyTexture(game_textures[next]);
+        game_sets[next]=set;game_textures[next]=fresh;texture_slot=next;
     }
     frame=fe::FrameDesc{};frame.fade=1;
     frame.bg.glow_pos[2]=frame.bg.glow_pos[3]=1;
     frame.bg.floor_glow[2]=frame.bg.floor_glow[3]=1;
     frame.bg.misc[0]=float(renderer.width())/renderer.height();frame.bg.misc[1]=0.5f;
-    float w=renderer.width(),h=renderer.height();float width=std::min(w,h*4.0f/3.0f),height=width*3.0f/4.0f;
+    float w=renderer.width(),h=renderer.height();float width=w,height=h;
+    if(aspect=="4:3"){width=std::min(w,h*4.0f/3.0f);height=width*3.0f/4.0f;}
     if(aspect=="Integer"){float scale=std::max(1.0f,std::floor(std::min(w/core.width,h/core.height)));width=core.width*scale;height=core.height*scale;}
     const float x=(w-width)/2,y=(h-height)/2;
     auto vertex=[](float x,float y,float u,float v){return fe::UiVertex{x,y,u,v,0xffffffff,0,0,0,2};};
     frame.ui={vertex(x,y,0,0),vertex(x+width,y,1,0),vertex(x,y+height,0,1),
               vertex(x,y+height,0,1),vertex(x+width,y,1,0),vertex(x+width,y+height,1,1)};
+    frame.game_set=game_sets[texture_slot];frame.game_vertices=6;
     return true;
 }
 }

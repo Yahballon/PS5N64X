@@ -103,6 +103,7 @@ public:
 	// vk-285-116: the rows of one tab (kTabSettings or kTabControls).
 	void SetTab(int tab);
 	int tab() const { return m_tab; }
+    std::string ThemeValue() const { return Get("N64XY/Theme", "quantum-lime").value; }
 
 	bool is_global() const { return m_global; }
 	const std::string& title() const { return m_title; }

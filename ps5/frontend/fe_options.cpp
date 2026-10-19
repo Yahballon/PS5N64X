@@ -274,9 +274,13 @@ const std::vector<OptionGroup>& OptionGroups()
 {
     // (AI-assisted) N64 values in the unchanged original options-sheet layout.
     static const std::vector<OptionGroup> groups = {
+        {"Appearance", {Seg("N64XY/Theme","Theme","quantum-lime","",
+           {{"quantum-lime","Quantum Lime"},{"nebula-purple","Nebula Purple"},
+            {"retro-red","Retro Red"},{"ice-crystal","Ice Crystal"},{"golden-era","Golden Era"}},
+            "Five original N64XY library-wide 3D glass themes.")}, kTabSettings},
         {"Emulation", {Seg("N64/CPU", "CPU", "cached_interpreter", "", {{"cached_interpreter","Cached interpreter"},{"pure_interpreter","Pure interpreter"}}),
                        Seg("N64/Threads", "Graphics workers", "2", "", {{"off","Off"},{"2","2"},{"4","4"}})}, kTabSettings},
-        {"Display", {Seg("N64/Aspect", "Picture", "4:3", "", {{"4:3","4:3"},{"Integer","Integer pixels"}})}, kTabSettings},
+        {"Display", {Seg("N64/Aspect", "Picture", "16:9", "", {{"16:9","16:9 Fullscreen"},{"4:3","4:3 Original"},{"Integer","Integer pixels"}})}, kTabSettings},
         {"Audio", {Toggle("N64/Sound", "Game sound", "true", "")}, kTabSettings},
         {"N64 buttons", NesButtonRows(), kTabControls},
         {"Save state", NesShortcutRows(0), kTabControls},
@@ -396,6 +400,13 @@ void OptionsSheet::BuildRows()
 
 OptionsSheet::Effective OptionsSheet::Get(const std::string& key, const std::string& def) const
 {
+    if(key=="N64XY/Theme") {
+        const IniState& global=m_global?m_own:m_globals;
+        if(const std::string* value=Find(global,key))
+            return {*value,m_global?From::Own:From::Global};
+        return {def,From::Default};
+    }
+
 	if (const std::string* v = Find(m_own, key))
 		return {*v, From::Own};
 	if (!m_global)
@@ -584,7 +595,9 @@ std::string OptionsSheet::Help(const Row& r) const
 bool OptionsSheet::Save(const std::vector<Change>& changes, const std::string& note)
 {
 	std::string what, error;
-	if (!EditSettingsFile(m_path, m_global ? m_header : m_header + ": written from the PS5SX2 shelf", changes, what, error))
+    const bool theme_only=changes.size()==1&&changes.front().key=="N64XY/Theme";
+    const std::string& destination=theme_only?m_paths.gs_ini:m_path;
+    if (!EditSettingsFile(destination, theme_only ? "# N64XY theme" : (m_global ? m_header : m_header + ": written from N64XY"), changes, what, error))
 	{
 		m_status = "Couldn't save: " + error;
 		std::printf("[options] %s: %s\n", m_file_label.c_str(), m_status.c_str());
@@ -608,7 +621,7 @@ bool OptionsSheet::SaveNfsUrl(const std::string& url)
 		m_status = error.empty() ? "Could not save NFS URL" : error;
 		return false;
 	}
-	m_status = "Saved. Restart PS5SX2 to refresh network games.";
+	m_status = "Saved. Restart N64XY to refresh network games.";
 	m_nfs_url = m_paths.nfs_url ? m_paths.nfs_url() : url;
 	if (m_paths.log)
 		m_paths.log("(AI-assisted) shelf: NFS URL changed; restart to refresh network games");
@@ -709,12 +722,12 @@ bool OptionsSheet::Activate(const Row& r, double now)
         std::string error;const bool reset=r.kind==Kind::ResetLibrary;
         const bool okay=reset?(m_paths.reset_library&&m_paths.reset_library(error)):(m_paths.clear_nfs_urls&&m_paths.clear_nfs_urls(error));
         if(okay&&!reset)m_nfs_url.clear();
-        m_status=okay?(reset?"Library reset. Restart PS5N64. ROMs and saves kept.":"All NFS URLs cleared. Restart PS5N64."):error;
+        m_status=okay?(reset?"Library reset. Restart N64XY. ROMs and saves kept.":"All NFS URLs cleared. Restart N64XY."):error;
         return okay;
     }
     if(r.kind==Kind::RescanLibrary){
         std::string error;bool okay=m_paths.rescan_library&&m_paths.rescan_library(error);
-        m_status=okay?"Rescan requested. Restart PS5N64.":error;
+        m_status=okay?"Rescan requested. Restart N64XY.":error;
         return okay;
     }
 	const int index = static_cast<int>(&r - m_rows.data());

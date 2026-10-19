@@ -24,9 +24,11 @@ private:
     std::unique_ptr<ShelfAudio> audio;
     std::string root;
     fe::Texture* menu_atlas=nullptr;
-    fe::Texture* game_texture=nullptr;
+    fe::Texture* game_textures[3]={nullptr,nullptr,nullptr};
+    VkDescriptorSet game_sets[3]={VK_NULL_HANDLE,VK_NULL_HANDLE,VK_NULL_HANDLE};
+    unsigned texture_slot=0;
     bool active=false,sound=true;
-    std::string aspect="4:3";
+    std::string aspect="16:9";
     double audio_rate=48000;
     double previous=0,accumulated=0,last_save=0;
 };
