@@ -6,7 +6,7 @@ import json
 import zipfile
 
 root = Path(__file__).resolve().parents[2]
-package = root / "n64/build-shelf/N64XY-v1.0.8-by-YAHBALLON.zip"
+package = root / "n64/build-shelf/N64XY-v1.0.9-by-YAHBALLON.zip"
 required = {
     "PPSA99206/eboot.bin",
     "PPSA99206/sce_sys/param.json",
@@ -24,6 +24,7 @@ with zipfile.ZipFile(package) as z:
     assert any(x.startswith("PPSA99206/licenses/") for x in names)
     param = json.loads(z.read("PPSA99206/sce_sys/param.json"))
     assert param["titleId"] == "PPSA99206"
+    assert param["localizedParameters"]["en-US"]["titleName"] == "N64XY"
     manifest = json.loads(z.read("PPSA99206/build-manifest.json"))
     assert manifest["title"] == "PPSA99206"
     for name, expected in manifest["files"].items():
