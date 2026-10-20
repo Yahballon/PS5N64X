@@ -3,7 +3,7 @@ name: N64XY Native Build & Release
 
 on:
   push:
-    branches: [main, feature/n64xy-v1.0.8]
+    branches: [main, feature/n64xy-v1.0.9]
     tags: ['v*']
   pull_request:
     branches: [main]
@@ -126,14 +126,14 @@ jobs:
         run: |
           set -euo pipefail
           python3 n64/tools/verify_package.py
-          cp n64/build-shelf/N64XY-v1.0.8-by-YAHBALLON.zip n64/build-shelf/PPSA99206.zip
+          cp n64/build-shelf/N64XY-v1.0.9-by-YAHBALLON.zip n64/build-shelf/PPSA99206.zip
           cd n64/build-shelf
           sha256sum PPSA99206.zip > PPSA99206.zip.sha256
           unzip -tq PPSA99206.zip
       - name: Upload actual compiled PS5 package
         uses: actions/upload-artifact@v4
         with:
-          name: N64XY-v1.0.8-PPSA99206
+          name: N64XY-v1.0.9-PPSA99206
           path: |
             n64/build-shelf/PPSA99206.zip
             n64/build-shelf/PPSA99206.zip.sha256
@@ -148,7 +148,7 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             tag="${GITHUB_REF#refs/tags/}"
           else
-            tag="v1.0.8"
+            tag="v1.0.9"
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::error::Release $tag exists; refusing to silently overwrite it."
