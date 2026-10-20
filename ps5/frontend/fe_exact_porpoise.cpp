@@ -241,8 +241,8 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
     // The status box is transient: it disappears automatically when the
     // final missing ROM has been checked (or when the worker stops because
     // the network is unavailable). A manual R2 refresh starts a new cycle.
-    if(progress.games > 0 && progress.planned > 0 &&
-       !progress.done && !progress.offline)
+    if(progress.games > 0 &&
+       (progress.scanned < progress.games || progress.transferring) && !progress.offline)
     {
         constexpr float px=1414,py=149,pw=452,ph=100;
         g.panel(px,py,pw,ph,rgba(0x061339,0.78f),0.84f,19,
@@ -256,13 +256,13 @@ void ExactPorpoiseShelf::Prepare(unsigned slot, float w, float h)
         else state="Searching for missing game covers";
         g.text(Font::SemiBold,19,px+19,py+14,kWhite,Align::Left,state);
         char detail[100];
-        std::snprintf(detail,sizeof(detail),"%d / %d checked   |   %d saved   |   %d unavailable",
-            progress.attempted,progress.planned,progress.downloaded,progress.failed);
+        std::snprintf(detail,sizeof(detail),"%d / %d games   |   %d saved   |   %d unavailable",
+            progress.scanned,progress.games,progress.downloaded,progress.failed);
         g.text(Font::SemiBold,16,px+19,py+45,kLavender,Align::Left,detail);
         const float barX=px+19,barY=py+80,barW=pw-38;
         g.panel(barX,barY,barW,6,rgba(0x25426B,0.78f),0.85f,3);
-        const float fraction=std::clamp(progress.planned > 0 ?
-            float(progress.attempted)/float(progress.planned) : 0.0f,0.0f,1.0f);
+        const float fraction=std::clamp(progress.games > 0 ?
+            float(progress.scanned)/float(progress.games) : 0.0f,0.0f,1.0f);
         if(fraction>0)
             g.panel(barX,barY,std::max(3.0f,barW*fraction),6,rgba(0x60D7FF),0.95f,3);
         if(progress.transferring && fraction<1)

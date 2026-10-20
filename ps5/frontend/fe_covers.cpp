@@ -590,10 +590,10 @@ CoverProgress CoverService::Progress() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     CoverProgress p;
     p.games=static_cast<int>(m_games.size());
-    p.scanned=p.games;p.planned=m_download_total;p.attempted=m_download_done;
+    p.scanned=m_cfg.window_radius>0?m_background_checked:p.games;p.planned=m_download_total;p.attempted=m_download_done;
     p.downloaded=m_download_saved;p.failed=m_download_failed;
     p.transferring=m_busy;p.offline=m_offline;
-    p.done=m_finished.load() || (!m_busy && m_download_total<=m_download_done);
+    p.done=m_finished.load() || (p.scanned>=p.games && !m_busy && m_download_total<=m_download_done);
     p.current=m_current_cover;
     return p;
 }
@@ -606,6 +606,8 @@ std::string CoverService::Status() const
 		std::snprintf(buf, sizeof(buf), Tr(Str::DownloadingCovers), m_download_done, m_download_total); // vk-285-110
 		return buf;
 	}
+	if(m_cfg.window_radius>0 && m_background_checked<static_cast<int>(m_games.size()) && !m_offline)
+		return "Cover scan: "+std::to_string(m_background_checked)+"/"+std::to_string(m_games.size());
 	return m_download_status;
 }
 
@@ -694,8 +696,6 @@ bool CoverService::DownloadCover(int index, CoverImage& out)
 	}
 	else if (status == 404)
 		WriteFileAtomic(missing, std::vector<uint8_t>{'4', '0', '4', '\n'});
-	else if (status < 0)
-		m_offline = true;
 	std::printf("[frontend] cover %s: %s -> %d%s\n", g.serial.c_str(), url.c_str(), status,
 		ok          ? (saved ? " (saved)" : " (displayed; cache save failed)") :
 		status >= 0 ? "" :
@@ -705,6 +705,7 @@ bool CoverService::DownloadCover(int index, CoverImage& out)
 	{
 		std::lock_guard<std::mutex> lock(m_mutex);
 		m_download_done++;
+        if(status<0)m_offline=true;
         if(ok)++m_download_saved;else ++m_download_failed;
         m_current_cover.clear();
 		if (ok)
@@ -796,8 +797,9 @@ void CoverService::RunWindow()
         }
         return false;
     };
-    std::printf("[covers] bounded mode: radius=%d, queue<=8, library=%d\n",m_cfg.window_radius,n);
+    std::printf("[covers] full-library background scan: radius=%d, queue<=8, library=%d\n",m_cfg.window_radius,n);
     int previous_selection=-1;
+    int background_cursor=0;
     while(!m_stop) {
         int refresh=-1;
         {std::lock_guard<std::mutex> lock(m_mutex);if(!m_refresh_requests.empty()){refresh=m_refresh_requests.front();m_refresh_requests.pop_front();m_offline=false;++m_download_total;}}
@@ -842,7 +844,31 @@ void CoverService::RunWindow()
                 continue;
             }
         }
-        usleep(10000);
+        // Work through every ROM, even if the player never selects it.
+        // Keep offscreen artwork on disk only (no offscreen GPU textures).
+        if(background_cursor<n){
+            const int i=background_cursor++;
+            if(!attempted[static_cast<size_t>(i)]){
+                const CoverFile best=finder.Best(m_games[static_cast<size_t>(i)]);
+                const bool missing=best.path.empty()||std::strcmp(best.source,"art")==0;
+                if(missing&&!m_offline&&MayDownload(i)){
+                    attempted[static_cast<size_t>(i)]=true;
+                    {std::lock_guard<std::mutex> lock(m_mutex);++m_download_total;}
+                    CoverImage image;
+                    if(DownloadCover(i,image)){
+                        finder=CoverFinder(m_cfg.manual_dir,m_cfg.cache_dir);
+                        if(std::abs(i-m_selected.load())<=radius){
+                            image.game=i;image.kind=CoverImage::Cover;
+                            if(!deliver(image))break;
+                            local[static_cast<size_t>(i)]=true;want[static_cast<size_t>(i)]=false;
+                        }
+                    }
+                }
+            }
+            {std::lock_guard<std::mutex> lock(m_mutex);m_background_checked=background_cursor;}
+            continue;
+        }
+        usleep(10000); // remain responsive to Triangle retry
     }
     std::lock_guard<std::mutex> lock(m_mutex);m_busy=false;
 }

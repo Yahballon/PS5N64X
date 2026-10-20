@@ -276,7 +276,12 @@ void App::Update(double dt, const Input& in)
 				Sound(Step(-5) ? Sfx::JumpLeft : Sfx::Edge, -0.25f);
 			if (in.r1 && !m_prev.r1)
 				Sound(Step(5) ? Sfx::JumpRight : Sfx::Edge, 0.25f);
-            if(in.r2&&!m_prev.r2&&!m_games.empty()){bool okay=m_covers&&m_covers->Refresh(m_selected);m_sheet_status=okay?"Updating selected cover...":"Cover update unavailable";m_sheet_status_time=m_time;}
+            if(((in.triangle&&!m_prev.triangle)||(in.r2&&!m_prev.r2))&&!m_games.empty()){
+                const bool okay=m_covers&&m_covers->Refresh(m_selected);
+                m_sheet_status=okay?"Searching cover again...":"Cover update unavailable";
+                m_sheet_status_time=m_time;
+                Sound(okay?Sfx::Move:Sfx::Edge,0.0f);
+            }
             if (in.circle && !m_prev.circle && m_sheet_anim < 0.05f) {
                 m_exit_confirm = true;
                 m_held = 0;
@@ -608,7 +613,7 @@ void App::Build(FrameDesc& f, const std::string& clock)
 			hint("#L1", "#R1", Tr(Str::HintJump));
 		}
 		hint(icon::Square, nullptr, Tr(Str::HintSettings)); // vk-285-114
-        hint("#R2", nullptr, "Update cover");
+        hint(icon::Triangle, nullptr, "Retry cover");
 	}
 
 	std::string status = m_time - m_sheet_status_time < 6 && !m_sheet_status.empty() ? m_sheet_status : (m_covers ? m_covers->Status() : std::string());

@@ -177,6 +177,7 @@ private:
 	std::deque<CoverImage> m_results;
     std::deque<int> m_refresh_requests;
 	int m_download_total = 0, m_download_done = 0;
+	int m_background_checked=0; // guarded by m_mutex
     int m_download_saved = 0, m_download_failed = 0;
     std::string m_current_cover;
 	bool m_offline = false;
