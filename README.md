@@ -4,7 +4,7 @@
 
 **64-bit classics. Next-generation PS5 homebrew.**
 
-**v1.0.8 · by YAHBALLON · PPSA99206**
+**v1.0.9 · by YAHBALLON · PPSA99206**
 
 [![N64XY PS5 native build](https://github.com/Yahballon/PS5N64X/actions/workflows/build-n64xy.yml/badge.svg)](https://github.com/Yahballon/PS5N64X/actions/workflows/build-n64xy.yml)
 [![Releases](https://img.shields.io/github/v/release/Yahballon/PS5N64X?style=flat-square)](https://github.com/Yahballon/PS5N64X/releases)
@@ -20,7 +20,7 @@
 | **3D CoverFlow** | Original Porpoise Vulkan rendering, neon glass cases, reflections and scrolling |
 | **5 exclusive themes** | Quantum Lime, Nebula Purple, Retro Red, Ice Crystal, Golden Era |
 | **Animated boot** | Original 64-bit Orbital Gateway: independent orbit rings, floating satellites and actual ROM/USB/NFS scan status |
-| **Box art** | Local cache first; legacy region-matched N64 artwork, [Libretro direct thumbnail index](https://thumbnails.libretro.com/Nintendo%20-%20Nintendo%2064/Named_Boxarts/) and upstream mirror |
+| **Box art** | Automatically scans all games in the background, downloading missing box art to disk. Triangle retries the selected cover; existing Libretro and region-matched sources retained |
 | **True case ratio** | Automatic square, landscape and portrait 3D boxes, entire cover visible, uncropped |
 | **Game presentation** | 16:9 Fullscreen default, 4:3 Original or Integer pixels |
 | **Native exit** | ○ in library → × Yes / ○ No; proper `sceSystemServiceLoadExec("exit", …)` |
@@ -33,7 +33,7 @@ Download `PPSA99206.zip` from [GitHub Releases](https://github.com/Yahballon/PS5
 
 ## Settings and controllers
 
-Browse with D-pad / left stick; **×** plays, **□** opens settings, and **○** opens the exit confirmation. N64 Controller mapping, C buttons, analog stick, saves and shortcuts remain configurable. Choose the new Themes under **Settings → Appearance**, and adjust aspect mode under **Settings → Display**. For widescreen filling, use **16:9 Fullscreen** (the original 4:3 game image is stretched, not cropped).
+Browse with D-pad / left stick; **×** plays, **□** opens settings, **△** retries the selected cover, and **○** opens the exit confirmation. N64 Controller mapping, C buttons, analog stick, saves and shortcuts remain configurable. Choose the new Themes under **Settings → Appearance**, and adjust aspect mode under **Settings → Display**. For widescreen filling, use **16:9 Fullscreen** (the original 4:3 game image is stretched, not cropped).
 
 ## Build from source
 
