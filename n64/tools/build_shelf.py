@@ -119,7 +119,7 @@ if (nes/'licenses').exists():
 revision_file=core/'UPSTREAM_REVISION.txt'
 if revision_file.exists():commit=revision_file.read_text().strip()
 else:commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=core,text=True).strip()
-manifest={'ai_assisted':True,'name':'N64XY v1.0.8 by YAHBALLON','title':'PPSA99206','core':'ParaLLEl N64 (cached interpreter, Angrylion)',
+manifest={'ai_assisted':True,'name':'N64XY v1.0.9 by YAHBALLON','title':'PPSA99206','core':'ParaLLEl N64 (cached interpreter, Angrylion)',
           'frontend':'N64XY 3D Porpoise CoverFlow with 5 original themes','cover_index_sha256':hashlib.sha256((nes/'src/cover_urls.h').read_bytes()).hexdigest(),'cover_source':'https://thumbnails.libretro.com/Nintendo%20-%20Nintendo%2064/Named_Boxarts/',
           'frontend_source_sha256':{str(p.relative_to(project)):hashlib.sha256(p.read_bytes()).hexdigest() for p in cpp_sources if '/ps5/frontend/' in str(p)},
           'core_commit':commit,'core_patch_sha256':{str(p.relative_to(core)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [core/'libretro/libretro.c',core/'mupen64plus-core/src/main/main.c',core/'mupen64plus-core/src/device/r4300/r4300_core.c',core/'mupen64plus-core/src/device/r4300/pure_interp.c',core/'libretro-common/rthreads/retro_eventcount.c']},'core_source':'https://github.com/libretro/parallel-n64','console_tested':False,
@@ -127,7 +127,7 @@ manifest={'ai_assisted':True,'name':'N64XY v1.0.8 by YAHBALLON','title':'PPSA992
                    if p.is_file() and p.name != 'build-manifest.json'}}
 (app/'build-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
 shutil.copy2(nes/'INSTALL.md',out/'package/INSTALL.md')
-bundle=out/'N64XY-v1.0.8-by-YAHBALLON.zip'
+bundle=out/'N64XY-v1.0.9-by-YAHBALLON.zip'
 with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED) as archive:
     for path in app.rglob('*'):
         if path.is_file():archive.write(path,Path('PPSA99206')/path.relative_to(app))
