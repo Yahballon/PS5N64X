@@ -1,7 +1,7 @@
 {
   "name": "N64XY",
-  "version": "1.0.8",
-  "releaseTag": "v1.0.8",
+  "version": "1.0.9",
+  "releaseTag": "v1.0.9",
   "titleId": "PPSA99206",
   "core": "ParaLLEl N64 (cached interpreter + Angrylion)",
   "frontend": "N64XY 3D CoverFlow",
